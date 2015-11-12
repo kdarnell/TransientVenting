@@ -8,6 +8,18 @@ import numpy as np
 import scipy as sp
 from scipy import interpolate
 
+
+#This code is the implementation of calculations for a GRL manuscript in review.
+#The calculations rely on an equilibrium pressure, which is a funciton of temperature and salinity.
+#We provide two types of equilibirum pressures (computed in slightly different ways).
+#The method of Tischenko uses a semi-analytical equation (with empirical constants)
+#The method of Liu solves Gibbs Energy Minimization at a Presssure, Temperature, Salinity (P,T,S)
+#Liu relys on reading in .csv files.
+#Each method should provide identical output.
+#Additional methods calculate the resulting $\Lambda$ value.
+
+
+#Constants:
 rho_w = 1030 #seawater density in kg/m^3
 z = np.arange(0,300,5) #vertical grid in m (in very deep water, change the z.max() to ensure you capture B_i)
 g = 9.81 #gravity in m^2/s
@@ -17,7 +29,7 @@ rho_g = 50 #methane gas density (approx) in kg/m^3
 c_g = 0.0014 #methane solubility in water kg/kg
 s_gr_ir = 0.02 #irreducible water saturation m^3/m^3
 
-
+#Two separate classes for handling different approaches to solving equilibrium equations
 class Tishchenko:
     # Methane Hydrate Dissociation Pressure from Tishchenko et. al., 2005
     #--------------------
@@ -107,31 +119,52 @@ def Hydstat_pressure(wd,z):
     Hyd_stat = (rho_w*g*(wd + z))/1e6
     return Hyd_stat
     
-#Parameterized calculation of the sample
+#Parameterized calculation of the sample for calculating $\Lambda$
+# "eta" is an efficienty factor that is set to 1.0, but can be modified.
 def find_lambda(T_sf,T_grad,SMTZ,wd,del_T,Sh,seawater,Eq_method,eta=1.0):
+    
+    # Hydrate saturation (Sh_abv)
+    #"Sh_abv" is modified to be zero where z<SMTZ 
     Sh_abv = np.zeros(np.shape(z))
     Sh_abv[z>=SMTZ] = Sh
+    
+    # Temperature
+    # "T_profile" is a linear function with slope "T_grad" and intercept of "T_sf"
     T_profile = T_sf + (T_grad/1e3)*z
+    #Apply increase to temperature
     T_warm = T_profile + del_T
+    
+    #Pressure
     Hyd_stat = Hydstat_pressure(wd,z)
+    
+    #Salinity calculated from equilibrium type
     sal_init = np.array([Eq_method.S_eq(T_profile[i],Hyd_stat[i]) for i in range(len(z))]).flatten()
     sal_warm = np.array([Eq_method.S_eq(T_warm[i],Hyd_stat[i]) for i in range(len(z))]).flatten()
+    
+    #Determine $\Lambda$
     if any(sal_init>seawater):
-        B_i = max(z[sal_init>seawater])
+        B_i = max(z[sal_init>seawater]) #Original base
         if any(z[sal_warm>seawater]):
-            B_f = max(z[sal_warm>=seawater])
+            B_f = max(z[sal_warm>=seawater]) #Warmed base
             if B_f<=B_i:
-                # This version includes a subtraction of the residual gas and dissolved gas.
-                beta = np.trapz(rho_h*theta_g*Sh_abv[(z<B_i)&(z>=B_f)] - s_gr_ir*rho_g,x=z[(z<B_i)&(z>=B_f)]) - \
-                np.trapz((1-Sh_abv[(z<B_f)])*rho_w*c_g*(1-sal_warm[(z<B_f)]),x=z[z<B_f])
-#                beta = np.trapz(Sh_abv[(z<B_i)&(z>=B_f)],x=z[(z<B_i)&(z>=B_f)])
-                gamma = rho_h*theta_g*np.trapz(1.0 - (seawater/(sal_warm[z<B_f] + 1.0e-6))*(1.0-Sh_abv[z<B_f]) - \
+                #Main calculation!!
+            
+                #Integrate "Sh_abv" from "B_i" to "B_f"
+                beta = np.trapz(Sh_abv[(z<B_i)&(z>=B_f)],x=z[(z<B_i)&(z>=B_f)])
+                
+                #Integrate "Sh_eq", which comes fom "sal_warm" from "0" to "B_f"
+                gamma = np.trapz(1.0 - (seawater/(sal_warm[z<B_f] + 1.0e-6))*(1.0-Sh_abv[z<B_f]) - \
                                 Sh_abv[z<B_f],x=z[z<B_f])
+                                
+                #Find ratio                
                 lam = eta*beta/gamma
             else:
+                #Provide exit flag for a cooling (should be a warming)
                 lam = np.array([999.])
         else:
+            #Provide exit flag for complete venting
             lam = np.array([999.])
     else:
+        #Provide exit flag for being outside of hydrate stability before warming
         lam = np.array([0.0])
     return lam

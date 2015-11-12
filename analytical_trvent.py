@@ -9,6 +9,16 @@ import matplotlib.pyplot as plt
 import Darnelletal as D
 import os
 
+#This file runs calculations contained in "Darnelletal.py".
+#The calculations correspond to equations present in GRL manuscript currently in review
+#The essential calculation is a single value $\Lambda$ (find_lambda), which compares 
+#two masses through the computation of integrals. The integrals are calculated numerically
+#due to the complexity of the state variables.
+
+#User instructions:
+#Input wd,SMTZ,T_sf,T_grad,del_T,Sh,seawater
+#Specify the equilibrium calculation type (Liu/Tischenko) into the "Eq_method" variable
+#Specify True/False for "make_plots" and "do_sensitivity"
 
 #-------------------------Main Body--------------------------------------------
 #Standard values to be used in calculations
@@ -46,35 +56,59 @@ else:
     
 #------------------------End of simple output----------------------------------
 
+#If either make_plots or do_sensitivity is True then hold all relevant values for calculation in memory.
 
 if make_plots or do_sensitivity:
     plt.style.use('ggplot')
 
-    # Sample calculation
+    # Sample calculation of "find_lambda"
+    #--------------------------------------
     eta = 1.0
     z = D.z
+    # Hydrate saturation (Sh_abv)
+    #"Sh_abv" is modified to be zero where z<SMTZ 
     Sh_abv = np.zeros(np.shape(z))
     Sh_abv[z>=SMTZ] = Sh
+    
+    # Temperature
+    # "T_profile" is a linear function with slope "T_grad" and intercept of "T_sf"
     T_profile = T_sf + (T_grad/1e3)*z
+    #Apply increase to temperature
     T_warm = T_profile + del_T
+    
+    #Pressure
     Hyd_stat = D.Hydstat_pressure(wd,z)
+    
+    #Salinity calculated from equilibrium type
     sal_init = np.array([Eq_method.S_eq(T_profile[i],Hyd_stat[i]) for i in range(len(z))]).flatten()
     sal_warm = np.array([Eq_method.S_eq(T_warm[i],Hyd_stat[i]) for i in range(len(z))]).flatten()
+    
+    #Determine $\Lambda$
     if any(sal_init>seawater):
-        B_i = max(z[sal_init>seawater])
+        B_i = max(z[sal_init>seawater]) #Original base
         if any(z[sal_warm>seawater]):
-            B_f = max(z[sal_warm>=seawater])
+            B_f = max(z[sal_warm>=seawater]) #Warmed base
             if B_f<=B_i:
+                #Main calculation!!
+            
+                #Integrate "Sh_abv" from "B_i" to "B_f"
                 beta = np.trapz(Sh_abv[(z<B_i)&(z>=B_f)],x=z[(z<B_i)&(z>=B_f)])
-                gamma = np.trapz(1.0 - (seawater/sal_warm[z<B_f])*(1.0-Sh_abv[z<B_f]) - \
+                
+                #Integrate "Sh_eq", which comes fom "sal_warm" from "0" to "B_f"
+                gamma = np.trapz(1.0 - (seawater/(sal_warm[z<B_f] + 1.0e-6))*(1.0-Sh_abv[z<B_f]) - \
                                 Sh_abv[z<B_f],x=z[z<B_f])
+                                
+                #Find ratio                
                 lam = eta*beta/gamma
             else:
-                lam = 999.
+                #Provide exit flag for a cooling (should be a warming)
+                lam = np.array([999.])
         else:
-            lam = 999.
+            #Provide exit flag for complete venting
+            lam = np.array([999.])
     else:
-        lam = 0.0
+        #Provide exit flag for being outside of hydrate stability before warming
+        lam = np.array([0.0])
     print(lam)
     
 
@@ -89,7 +123,6 @@ if make_plots:
     
     
     #-------------------------Plots--------------------------------------------
-#    with plt.style.context('fivethirtyeight'):
     
     # Figure 1
     plt.figure()
@@ -134,27 +167,31 @@ if make_plots:
     #    plt.grid()
     plt.show()
 
+
+#if do_sensitivity is True then isolate each parameter and iterate over variations in that parameter
+#the resulting figure will plot each variation in parameter and the resulting $\Lambda$
 if do_sensitivity:
-    pt_chng = 0.9
-    sens_pts = 100
+    pt_chng = 0.9 #percent change in parameter
+    sens_pts = 100 #number of points in varied parameter
     
+    #Isolate 6 parameters
     Temp_test = np.linspace(T_sf*(1 - pt_chng),T_sf*(1 + pt_chng),sens_pts)
-    Sens1 = np.array([D.find_lambda(Ts,T_grad,SMTZ,wd,del_T,Sh,seawater,Eq_method,eta=0.4) for Ts in Temp_test]).flatten()
+    Sens1 = np.array([D.find_lambda(Ts,T_grad,SMTZ,wd,del_T,Sh,seawater,Eq_method) for Ts in Temp_test]).flatten()
     
     delTemp_test = np.linspace(del_T*(1 - pt_chng),del_T*(1 + pt_chng),sens_pts)
-    Sens2 = np.array([D.find_lambda(T_sf,T_grad,SMTZ,wd,delTs,Sh,seawater,Eq_method,eta=0.4) for delTs in delTemp_test]).flatten()
+    Sens2 = np.array([D.find_lambda(T_sf,T_grad,SMTZ,wd,delTs,Sh,seawater,Eq_method) for delTs in delTemp_test]).flatten()
     
     wd_test = np.linspace(wd*(1 - pt_chng),wd*(1 + pt_chng),sens_pts)
-    Sens3 = np.array([D.find_lambda(T_sf,T_grad,SMTZ,wdepths,del_T,Sh,seawater,Eq_method,eta=0.4) for wdepths in wd_test]).flatten()
+    Sens3 = np.array([D.find_lambda(T_sf,T_grad,SMTZ,wdepths,del_T,Sh,seawater,Eq_method) for wdepths in wd_test]).flatten()
     
     grad_test = np.linspace(T_grad*(1 - pt_chng),T_grad*(1 + pt_chng),sens_pts)
-    Sens4 = np.array([D.find_lambda(T_sf,grads,SMTZ,wd,del_T,Sh,seawater,Eq_method,eta=0.4) for grads in grad_test]).flatten()
+    Sens4 = np.array([D.find_lambda(T_sf,grads,SMTZ,wd,del_T,Sh,seawater,Eq_method) for grads in grad_test]).flatten()
     
     SM_test = np.linspace(SMTZ*(1 - pt_chng),SMTZ*(1 + pt_chng),sens_pts)
-    Sens5 = np.array([D.find_lambda(T_sf,T_grad,SMTZ_s,wd,del_T,Sh,seawater,Eq_method,eta=0.4) for SMTZ_s in SM_test]).flatten()
+    Sens5 = np.array([D.find_lambda(T_sf,T_grad,SMTZ_s,wd,del_T,Sh,seawater,Eq_method) for SMTZ_s in SM_test]).flatten()
     
     Sh_test = np.linspace(Sh*(1 - pt_chng),Sh*(1 + pt_chng),sens_pts)
-    Sens6 = np.array([D.find_lambda(T_sf,T_grad,SMTZ,wd,del_T,Sh_s,seawater,Eq_method,eta=0.4) for Sh_s in Sh_test]).flatten()
+    Sens6 = np.array([D.find_lambda(T_sf,T_grad,SMTZ,wd,del_T,Sh_s,seawater,Eq_method) for Sh_s in Sh_test]).flatten()
     
     
     plt.figure()
@@ -173,8 +210,7 @@ if do_sensitivity:
            ncol=3, mode="expand", borderaxespad=0.)
     plt.xlabel('Percent change in parameter')
     plt.ylabel(' $\Lambda$')
-    plt.savefig('/Users/kdarnell/Desktop/correctedsens',format='eps')
-
+    plt.show()
 
 
 
