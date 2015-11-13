@@ -16,18 +16,17 @@ import os
 #due to the complexity of the state variables.
 
 #User instructions:
-#Input wd,SMTZ,T_sf,T_grad,del_T,Sh,seawater
+#Input wd,T_sf,T_grad,del_T,Sh,seawater
 #Specify the equilibrium calculation type (Liu/Tischenko) into the "Eq_method" variable
 #Specify True/False for "make_plots" and "do_sensitivity"
 
 #-------------------------Main Body--------------------------------------------
 #Standard values to be used in calculations
-wd = 550.0 #water depth in m
-SMTZ = 20 #depth of sulfate-methane transition zone in m
+wd = 550 #water depth in m
 T_sf = 3.0 #seafloor temperature in C
 T_grad = 40.0 #temperature gradient in C/km
-del_T = 2.7 #increase in seafloor temperature in C
-Sh = 0.05 #hydrate pore volume percent at start (this will exist between B_i and SMTZ)
+del_T = 2.3 #increase in seafloor temperature in C
+Sh = 0.1 #hydrate pore volume percent at start (this will exist between B_i and SMTZ)
 seawater = 0.035 # salinity in kg/kg
 
 #Call both methods for easy comparison, then pick one for entire calculation
@@ -37,11 +36,11 @@ Tish_mthd = D.Tishchenko(T_unit='C',S_unit='kg/kg')
 Eq_method = Liu_mthd    
 
 #Calculate lambda the relevant parameter found in the body of the manuscript (EQ-4)
-lam = D.find_lambda(T_sf,T_grad,SMTZ,wd,del_T,Sh,seawater,Eq_method).flatten()
+lam = D.find_lambda(T_sf,T_grad,wd,del_T,Sh,seawater,Eq_method).flatten()
 
 #Do you want to look at some plots? (True/False)
 make_plots = True
-do_sensitivity = False 
+do_sensitivity = False
 
 #--------------------Print some output-----------------------------------------
 print('Lambda = ',lam)
@@ -63,12 +62,10 @@ if make_plots or do_sensitivity:
 
     # Sample calculation of "find_lambda"
     #--------------------------------------
-    eta = 1.0
     z = D.z
-    # Hydrate saturation (Sh_abv)
-    #"Sh_abv" is modified to be zero where z<SMTZ 
-    Sh_abv = np.zeros(np.shape(z))
-    Sh_abv[z>=SMTZ] = Sh
+     # Hydrate saturation (Sh_abv)
+    #"Sh_abv" is everywhere equal to Sh (however, we will only integrate from B_i to B_f)
+    Sh_abv = np.ones(np.shape(z))*Sh
     
     # Temperature
     # "T_profile" is a linear function with slope "T_grad" and intercept of "T_sf"
@@ -95,11 +92,11 @@ if make_plots or do_sensitivity:
                 beta = np.trapz(Sh_abv[(z<B_i)&(z>=B_f)],x=z[(z<B_i)&(z>=B_f)])
                 
                 #Integrate "Sh_eq", which comes fom "sal_warm" from "0" to "B_f"
-                gamma = np.trapz(1.0 - (seawater/(sal_warm[z<B_f] + 1.0e-6))*(1.0-Sh_abv[z<B_f]) - \
-                                Sh_abv[z<B_f],x=z[z<B_f])
+                #Add a very small number to ensure that we don't divide by zero
+                gamma = np.trapz(1.0 - (seawater/(sal_warm[z<B_f] + 1.0e-8)),x=z[z<B_f])
                                 
                 #Find ratio                
-                lam = eta*beta/gamma
+                lam = beta/gamma
             else:
                 #Provide exit flag for a cooling (should be a warming)
                 lam = np.array([999.])
@@ -176,22 +173,19 @@ if do_sensitivity:
     
     #Isolate 6 parameters
     Temp_test = np.linspace(T_sf*(1 - pt_chng),T_sf*(1 + pt_chng),sens_pts)
-    Sens1 = np.array([D.find_lambda(Ts,T_grad,SMTZ,wd,del_T,Sh,seawater,Eq_method) for Ts in Temp_test]).flatten()
+    Sens1 = np.array([D.find_lambda(Ts,T_grad,wd,del_T,Sh,seawater,Eq_method) for Ts in Temp_test]).flatten()
     
     delTemp_test = np.linspace(del_T*(1 - pt_chng),del_T*(1 + pt_chng),sens_pts)
-    Sens2 = np.array([D.find_lambda(T_sf,T_grad,SMTZ,wd,delTs,Sh,seawater,Eq_method) for delTs in delTemp_test]).flatten()
+    Sens2 = np.array([D.find_lambda(T_sf,T_grad,wd,delTs,Sh,seawater,Eq_method) for delTs in delTemp_test]).flatten()
     
     wd_test = np.linspace(wd*(1 - pt_chng),wd*(1 + pt_chng),sens_pts)
-    Sens3 = np.array([D.find_lambda(T_sf,T_grad,SMTZ,wdepths,del_T,Sh,seawater,Eq_method) for wdepths in wd_test]).flatten()
+    Sens3 = np.array([D.find_lambda(T_sf,T_grad,wdepths,del_T,Sh,seawater,Eq_method) for wdepths in wd_test]).flatten()
     
     grad_test = np.linspace(T_grad*(1 - pt_chng),T_grad*(1 + pt_chng),sens_pts)
-    Sens4 = np.array([D.find_lambda(T_sf,grads,SMTZ,wd,del_T,Sh,seawater,Eq_method) for grads in grad_test]).flatten()
-    
-    SM_test = np.linspace(SMTZ*(1 - pt_chng),SMTZ*(1 + pt_chng),sens_pts)
-    Sens5 = np.array([D.find_lambda(T_sf,T_grad,SMTZ_s,wd,del_T,Sh,seawater,Eq_method) for SMTZ_s in SM_test]).flatten()
-    
+    Sens4 = np.array([D.find_lambda(T_sf,grads,wd,del_T,Sh,seawater,Eq_method) for grads in grad_test]).flatten()
+     
     Sh_test = np.linspace(Sh*(1 - pt_chng),Sh*(1 + pt_chng),sens_pts)
-    Sens6 = np.array([D.find_lambda(T_sf,T_grad,SMTZ,wd,del_T,Sh_s,seawater,Eq_method) for Sh_s in Sh_test]).flatten()
+    Sens5 = np.array([D.find_lambda(T_sf,T_grad,wd,del_T,Sh_s,seawater,Eq_method) for Sh_s in Sh_test]).flatten()
     
     
     plt.figure()
@@ -199,8 +193,7 @@ if do_sensitivity:
     plt.plot(100.0*(delTemp_test - del_T)/del_T,Sens2,label='$\Delta T$',linewidth=2)
     plt.plot(100.0*(wd_test[(Sens3!=0.0)&(Sens3!=999.)] - wd)/wd,Sens3[(Sens3!=0.0)&(Sens3!=999.)],label='water depth',linewidth=2)
     plt.plot(100.0*(grad_test - T_grad)/T_grad,Sens4,label='$\\nabla T$',linewidth=2)
-    plt.plot(100.0*(SM_test - SMTZ)/SMTZ,Sens5,label='SMTZ',linewidth=2)
-    plt.plot(100.0*(Sh_test - Sh)/Sh,Sens6,label='$S_h$',linewidth=2)
+    plt.plot(100.0*(Sh_test - Sh)/Sh,Sens5,label='$S_h$',linewidth=2)
     plt.plot([-100,100],[1,1],'k',linewidth=4)
     
 
@@ -210,6 +203,7 @@ if do_sensitivity:
            ncol=3, mode="expand", borderaxespad=0.)
     plt.xlabel('Percent change in parameter')
     plt.ylabel(' $\Lambda$')
+    plt.savefig('myfig',format ='pdf')
     plt.show()
 
 

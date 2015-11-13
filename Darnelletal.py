@@ -21,13 +21,8 @@ from scipy import interpolate
 
 #Constants:
 rho_w = 1030 #seawater density in kg/m^3
-z = np.arange(0,300,5) #vertical grid in m (in very deep water, change the z.max() to ensure you capture B_i)
+z = np.arange(0,300,0.1) #vertical grid in m (in very deep water, change the z.max() to ensure you capture B_i)
 g = 9.81 #gravity in m^2/s
-rho_h = 912 #hydrate density in kg/m^3
-theta_g = 0.14 #methane mass fraction in hydrate
-rho_g = 50 #methane gas density (approx) in kg/m^3
-c_g = 0.0014 #methane solubility in water kg/kg
-s_gr_ir = 0.02 #irreducible water saturation m^3/m^3
 
 #Two separate classes for handling different approaches to solving equilibrium equations
 class Tishchenko:
@@ -121,12 +116,11 @@ def Hydstat_pressure(wd,z):
     
 #Parameterized calculation of the sample for calculating $\Lambda$
 # "eta" is an efficienty factor that is set to 1.0, but can be modified.
-def find_lambda(T_sf,T_grad,SMTZ,wd,del_T,Sh,seawater,Eq_method,eta=1.0):
+def find_lambda(T_sf,T_grad,wd,del_T,Sh,seawater,Eq_method,eta=1.0):
     
     # Hydrate saturation (Sh_abv)
-    #"Sh_abv" is modified to be zero where z<SMTZ 
-    Sh_abv = np.zeros(np.shape(z))
-    Sh_abv[z>=SMTZ] = Sh
+    #"Sh_abv" is everywhere equal to Sh (however, we will only integrate from B_i to B_f)
+    Sh_abv = np.ones(np.shape(z))*Sh
     
     # Temperature
     # "T_profile" is a linear function with slope "T_grad" and intercept of "T_sf"
@@ -153,8 +147,8 @@ def find_lambda(T_sf,T_grad,SMTZ,wd,del_T,Sh,seawater,Eq_method,eta=1.0):
                 beta = np.trapz(Sh_abv[(z<B_i)&(z>=B_f)],x=z[(z<B_i)&(z>=B_f)])
                 
                 #Integrate "Sh_eq", which comes fom "sal_warm" from "0" to "B_f"
-                gamma = np.trapz(1.0 - (seawater/(sal_warm[z<B_f] + 1.0e-6))*(1.0-Sh_abv[z<B_f]) - \
-                                Sh_abv[z<B_f],x=z[z<B_f])
+                #Add a very small number to ensure that we don't divide by zero
+                gamma = np.trapz(1.0 - (seawater/(sal_warm[z<B_f] + 1.0e-8)),x=z[z<B_f])
                                 
                 #Find ratio                
                 lam = eta*beta/gamma
