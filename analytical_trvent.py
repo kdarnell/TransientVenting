@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Created on Thu Oct  1 12:27:40 2015
+Updated on Tue Jan  6 08:57:33 2016
 
 @author: kdarnell
 """
@@ -10,7 +11,11 @@ import Darnelletal as D
 import os
 
 #This file runs calculations contained in "Darnelletal.py".
-#The calculations correspond to equations present in GRL manuscript currently in review
+#The calculations correspond to equations present in the following GRL article:
+#Darnell, K. N., and P. B. Flemings (2015), Transient seafloor venting on continental 
+# slopes from warming-induced methane hydrate dissociation, Geophys. Res. Lett., 42, 
+# doi:10.1002/2015GL067012.
+
 #The essential calculation is a single value $\Lambda$ (find_lambda), which compares 
 #two masses through the computation of integrals. The integrals are calculated numerically
 #due to the complexity of the state variables.

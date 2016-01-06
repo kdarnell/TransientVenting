@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Created on Tue Oct  6 14:35:30 2015
+Updated on Wed Jan  6 08:55:01 2016
 
 @author: kdarnell
 """
@@ -9,7 +10,11 @@ import scipy as sp
 from scipy import interpolate
 
 
-#This code is the implementation of calculations for a GRL manuscript in review.
+#This code is the implementation of calculations for the following GRL manuscript:
+#Darnell, K. N., and P. B. Flemings (2015), Transient seafloor venting on continental 
+# slopes from warming-induced methane hydrate dissociation, Geophys. Res. Lett., 42, 
+# doi:10.1002/2015GL067012.
+
 #The calculations rely on an equilibrium pressure, which is a funciton of temperature and salinity.
 #We provide two types of equilibirum pressures (computed in slightly different ways).
 #The method of Tischenko uses a semi-analytical equation (with empirical constants)
